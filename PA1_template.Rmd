@@ -1,0 +1,164 @@
+---
+title: "Course Project 1"
+author: "Ahmed Moustafa"
+date: "6/27/2021"
+output: html_document
+---
+
+## Loading needed libraies
+
+```{r Loading libraies, warning=FALSE, include=FALSE}
+library(tidyverse)
+library(readr)
+library(Hmisc)
+library(ggplot2)
+library(dplyr)
+library(plotly)
+library(hrbrthemes)
+library(dplyr)
+```
+
+## Reading the data
+
+```{r Reading the data}
+my_data <- read_csv("repdata_data_activity.zip")
+```
+
+## First question: What is mean total number of steps taken per day?
+
+#### 1. Making a histogram of the total number of steps taken each day
+
+```{r hist 1}
+sum_day <- my_data %>% group_by(date) %>% drop_na() %>%
+    summarise(sum_days= sum(steps))
+histogram(sum_day$sum_days,xlab = "Steps")
+```
+
+
+
+#### 2. Calculating and report the mean and median total number of steps taken per day
+
+```{r}
+sum_day %>% drop_na() %>%
+    summarise(steps_mean =mean(sum_days), steps_median = median(sum_days))
+```
+
+
+## What is the average daily activity pattern?
+#### 1. A time series plot of the 5-minute interval and the average number of steps taken averaged across all days
+
+```{r include=FALSE}
+steps_Per_Interval <- my_data %>%
+    group_by(interval) %>%
+    summarise(meansteps = mean(steps, na.rm = TRUE)) 
+
+avg_interval <- steps_Per_Interval %>%
+    ggplot(aes(x=interval, y=meansteps)) +
+    geom_area(fill="#69b3a2", alpha=0.5) +
+    geom_line(color="#69b3a2") +
+    ylab("Mean Steps per Interval") +
+    xlab("Interval")
+    theme_ipsum()
+```
+
+```{r}
+ggplotly(avg_interval)
+```
+
+
+The daily activity pattern shows one peak at interval 835 with mean steps of 206.1698
+
+
+#### 2. The 5-minute interval that contains the maximum number of steps
+
+```{r}
+steps_Per_Interval %>% drop_na() %>% filter(meansteps == max(meansteps))
+
+```
+
+The **835 interval** on average across all the days in the dataset, contains the maximum number of steps.
+
+## Imputing missing values
+
+#### 1. Calculating the total number of missing values
+
+```{r}
+NAs_percent <- mean(is.na(my_data)) * 100
+print(NAs_percent)
+```
+The NA% in the data set is ~ 4.37%.
+
+
+#### 2. Devising a strategy for filling in all of the missing values in the dataset
+
+##### The strategy
+1. We determine the columns with the NAs, in this case its only the *steps* column.
+2. We make a new copy of the data set with the NAs - the column with NAs.
+3. We add a new column with that contains the value of the imputed NAs column.
+
+#### 3. Creating a new dataset that is equal to the original dataset but with the missing data filled in
+
+```{r}
+my_data_without_na <- select(my_data, - steps)
+my_data_without_na$steps_without_na <- impute(my_data$steps)
+View(my_data_without_na)
+```
+
+#### 4. a. Make a histogram of the total number of steps taken each day
+
+```{r}
+imputed_data_grouped_by_date <- my_data_without_na %>% group_by(date) %>%
+    summarise(sum_steps = sum(steps_without_na))
+histogram(imputed_data_grouped_by_date$sum_steps, xlab = "Sum of the steps by day")
+```
+
+#### 4. b. Calculati and report the mean and median total number of steps taken per day and detrmining if these values differ from the estimates from the first data set.
+
+```{r}
+imputed_data_grouped_by_date %>% summarise(mean_1 = mean(sum_steps), 
+                                           median_1 = median(sum_steps))
+sum_day %>% drop_na() %>%
+    summarise(steps_mean =mean(sum_days), steps_median = median(sum_days))
+```
+
+By looking at both of them we find that the imputed results are *slightly less* than the original data with missing values.
+
+
+#### 4. c. What is the impact of imputing missing data on the estimates of the total daily number of steps?
+
+The imputed results are less than the original data with missing values.
+
+#### 5. Are there differences in activity patterns between weekdays and weekends?
+
+ Organizing the Data
+```{r}
+weekly_data <- my_data_without_na
+weekly_data$day <- ifelse(weekdays(weekly_data$date) %in% c("Saturday", "Sunday"), "weekend", "weekday")
+weekly_data$day <- as.factor(weekly_data$day)
+```
+
+```{r}
+weekly_data_weekend <- weekly_data %>% filter(day=="weekend")
+weekly_data_weekday <- weekly_data %>% filter(day=="weekday")
+
+weekly_data_weekend <- weekly_data_weekend %>% group_by(interval) %>%
+    summarise(avg_step= mean(steps_without_na))
+weekly_data_weekend$day <- "weekend"
+
+weekly_data_weekday <- weekly_data_weekday %>% group_by(interval) %>%
+    summarise(avg_step= mean(steps_without_na))
+
+weekly_data_weekday$day <- "weekday"
+weekly_data_binded <- rbind(weekly_data_weekday, weekly_data_weekend)
+weekly_data_binded$day <- as.factor(weekly_data_binded$day)
+```
+
+Ploting the data to show if there is a difference between weekday and weekend
+
+```{r}
+ggplot(data = weekly_data_binded, mapping = aes(x= interval, y=avg_step)) + 
+    geom_line() + facet_grid(day~.) + xlab("Interval") +ylab("Avrage steps per  Interval")
+```
+
+Yes there is a difference between weekday and weekend.
+
